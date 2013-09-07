@@ -1,171 +1,165 @@
+
 <!doctype html>
 <html>
     <head>
-        <script src='https://cdn.firebase.com/v0/firebase.js'></script>
-    	<!-- Add 1 script off a CDN as we might for a standard page...  -->
-        <script src="//codeorigin.jquery.com/jquery-1.10.2.min.js"></script>
-        <script>
-            var config = { additionalMultiplier: 0 };
-        </script>
-       <script src="dist/BufferedParseObserver.js"></script>
-        
 
-        <!-- Add some CSS as we might for a standard page... -->
-        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css">
-        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-theme.min.css">
+    <link type="text/x-promised-json"
+        data-src="https://rawgithub.com/gnip/764239/raw/6c6a2297f3e4e29a626f07db0c57b45af7d7e5d7/Twitter+%28json+format%29.js"
+        data-promise="my.twitter.data">
 
-
-       <style>
-            textarea, pre{ width: 95%; overflow: auto; }
-            textarea:not(.enabled), pre:not(.enabled) { display: none; }
-            body{ margin: 2em; }
-            button{ margin-right: 2em; float: right; }
-            p { margin-bottom: 2em; }
-            input,select{ display: block; width: 26em; margin-top: 0.5em; }
-            form{
-                width: 35em;
-                border: 1px solid gray;
-                padding: 3em;
-                text-align:
-                center; margin: 2em auto; }
-        </style>
-
-        <script id="demo_definition">
-// for demo purposes
-var start = Date.now();
-var config = { "mode": "setTimeout", "tag": "body", "additionalMultiplier": 0, notifications: [] };
-var writeBuffer = [];
-window.location.search.substring(1).split("&").forEach(
-    function(el){var parts = el.split("=");config[parts[0]] = parts[1];}
-)
-var stamp = function () { return Date.now() - start };
-
-var listObserver = new BufferedParseObserver(config.tag, config.mode);
-listObserver.on("notify", function(arr) {
-    var time = stamp();
-    /*
-       As this list is live and being populated as
-       the document is parsing - you will generally reach body real fast
-       but that just means the body tag is available (document.body)
-       it isn't "ready" (populated)
-       A simple way to say "the head is completed" though would be that
-       you've reached the body - what we’ve done here.
-    */
-    writeBuffer.push(
-        "got " + arr.length
-        + " " + config.tag
-        + " at " + time
-    ); // any element here is ready and qsa works within it...
-    config.notifications.push({size: arr.length, at: time});
-    // this.disconnect();  // stop your stupid polling already
-    // If I return a promise here I can use done - see below...
-});
-
-
-// disconnected and all promises fulfilled...
-listObserver.on( "done", function() {
-    var time = stamp();
-    writeBuffer.push(
-        "actual dom loaded event at "
-        + (__domContentLoadedTime - start)
-    );
-
-    writeBuffer.push(
-        "done called at " + time + "ms"
-        + " - DOMContentLoaded and all returned promises resolved..."
-    );
-
-    config.userAgent = navigator.userAgent;
-    config.DOMContentLoaded = (__domContentLoadedTime - start);
-    config.done = time;
-    config.sampleSize =  document.querySelectorAll("div").length;
+    <link type="text/x-promised-script"
+        data-src="https://rawgithub.com/wycats/handlebars.js/1.0.0/dist/handlebars.js"
+        data-promise="my.handlebars.code">
     
-
-    writeBuffer.push(
-        "this document is using " 
-        + config.sampleSize
-        + " divs to simulate a page..."
-    );
-
-    document.getElementById("result").innerHTML = writeBuffer.join("\n");
-
-    setTimeout(function (){
-        var myDataRef = new Firebase('https://buffered-reader.firebaseio.com/perf');
-        myDataRef.push(JSON.parse(JSON.stringify(config))); // yup.. I dont get it.
+    <script>
+      var config = { additionalMultiplier: 0 };
+      ProllyfillRoot = Hitch = {};
+    </script>
     
-    })
-});
-        </script>
+    <script src="../dist/BufferedParseObserver.js"></script>
+   
+
+
+      <!-- Add 1 script off a CDN as we might for a standard page...  -->
+      <script src="//codeorigin.jquery.com/jquery-1.10.2.min.js"></script>
+
+      <script src="../sample-lib/deferred-links.js"></script>
+      
+      </script>
+
+      <!-- Add some CSS as we might for a standard page... -->
+      <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css">
+      <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-theme.min.css">
+
+
+     <style>
+          textarea, pre{ width: 95%; overflow: auto; }
+          textarea:not(.enabled), pre:not(.enabled) { display: none; }
+          body{ margin: 2em; }
+          button{ margin-right: 2em; float: right; }
+          p { margin-bottom: 2em; }
+          input,select{ display: block; width: 26em; margin-top: 0.5em; }
+          form{
+              width: 35em;
+              border: 1px solid gray;
+              padding: 3em;
+              text-align:
+              center; margin: 2em auto; 
+          }
+          .note{
+            font-style : italic;
+            color: gray;
+          }
+      </style>
+
+
 
     </head>
     <body>
-    
-    <em>Why?</em> See <a href="https://github.com/bkardell/BufferedParseObserver/blob/master/proposal.md">the proposal.</a>
 
-    <h2><code>BufferedParseObserver</code> Demo</h2>
-    <p>Connect to the stream looking for a particular tag and a particular mechanism for polling
-    a live node list (yes, I may have found an actual usecase where they are kinda handy). By default it uses setTimeout for polling, looks for body and puts about 5000 divs in the page
-    to simulate content... You can pass arguments to the demo by way of querystring - I've provided a form below to make it easy to try out changing any of those variables.
-    When DOMContentLoaded happens, a report will appear in the textarea below...<strong>Note, this could take a while based on the upfront latecy described above.</strong>.  See also an <a href="sample-use/deferred-link.html">example use</a>.
 
-    <pre id="result" class="enabled"></pre>
-
-    <div id="submitter">
-    <form id="retry">
-        <fieldset>
-            <legend>Tweak it yourself...</legend>
-            <select name="mode">
-                <option value="setTimeout">Buffer with setTimeout</option>
-                <option value="setImmediate">Buffer with setImmediate</option>
-            </select>
-            <input type="text" name="tag" placeholder="tagName like body, link or div">
-            <input type="text" name="additionalMultiplier" placeholder="Number of elements to add to the page size">
-
-            <button onclick="" class="btn btn-primary" style="float: right;margin-top: 1em;">Go</button>
-        </fieldset>
-    </form>
-
-    <hr>
-    <h2>BufferedParseObserver - Source Code</h2>
-    <button class="btn btn-info" onclick="document.getElementById('source').classList.toggle('enabled')">Toggle code view</button><p>
-        Basically, it gives you buffers of things as it is still parsing...
-        This demo uses a polling on a live node list to accomplish it, and 
-        includes a polyfill for setImmediate.
+    <p>
+        A semi-contrived example demonstrating a really simple (and naive)
+        prollyfill for "lazy load/lazy deferred assets" using <a href="../index.html"><code>BufferedParseObserver</code></a>.  Basically the proposal
+        would look something like this (note: this is not a real proposal)...
     </p>
-    <pre id="source"></pre>
-    <script>
-        if (config.mode === "setImmediate") {
-            document.querySelector("#retry select[name='mode']").selectedIndex = 1;
-        }
-        if (config.tag) { document.querySelector("#retry input[name='tag']").value = config.tag; }
-        if (config.additionalMultiplier) { document.querySelector("#retry input[name='additionalMultiplier']").value = config.additionalMultiplier; }
-        $.ajax({
-            url: "src/BufferedParseObserver.js", 
-            dataType: 'text',
-            mimeType: 'text'
-       }).then(function (data) {
-            $("#source").text(data);
-       });
-        
+    <p>
+        <h5>The proposal: Promised Linked Sources</h5>
+        Authors may include <code>&lt;link&gt;</code> tags with a custom
+        <code>type="text/x-promised"</code> attribute can be added to declaratively
+        indicate a lazy fetch of text early (prior to DOMContentLoaded).
+        Fetched items are not interpreted, but  may specify subtypes which allow easy processing upon demand.  These may be
+        <code>text/x-promised-script</code> and <code>text/x-promised-json</code>.
+        These tags MUST include a <code>data-src</code> attribute indicating the URL from
+        which the resource should be loaded, and a <code>data-promise</code> attribute
+        indicating a unique promise name.  The environment maintains an object for 
+        dealing with named promises called <code>NamedSourcePromises</code>.
+    </p>
+    <p>
+        Authors may register callback via <code>NamedSourcePromises.ready(fn)</code>.
+        Inside of this callback, authors may use <code>NamedSourcePromises.resolve(<em>promiseId</em>)</code>
+        to interpret the source based on the specified subtype or explicitly use <code>NamedSourcePromises.text</code>
+        to access the text, <code>Hitch.promised.script</code> to evaluate it as script,
+        or <code>NamedSourcePromises.json</code> to parse it as JSON.
+    </p>
+    <p class="note">A note on the prollyfill being demonstrated here: Functions are written such that authors 
+      may provide a <code>window.ProllyfillRoot</code> object which the API will be attacted to for forward compatability.  If 
+      none is provided, the functions are attached to <code>window</code>. For the demo, I am setting this  
+      so that all examples below are attached to the <code>Hitch</code> object.</p>.  This prollyfill is also potentially 
+      naieve as it relies on jQuery and I wrote it in short order as a simple demonstration.
+    <p>
+        <h5>The demo...</h5>
 
-        var myDataRef = new Firebase('https://buffered-reader.firebaseio.com/');
-        navigator.userAgent
+        In this page, I've included these...
+        <pre class="enabled">
+&lt;link type="text/x-promised-json"
+    data-src="https://rawgithub.com/gnip/764239/raw/6c6a2297f3e4e29a626f07db0c57b45af7d7e5d7/Twitter+%28json+format%29.js"
+    data-promise="my.twitter.data"&gt;
 
+&lt;link type="text/x-promised-script"
+    data-src="https://rawgithub.com/wycats/handlebars.js/1.0.0/dist/handlebars.js"
+    data-promise="my.handlebars.code"&gt;
+
+        </pre>
+    </p>
+    <script id="codescript">
+/* The sources are loaded, but not evaluated... */
+Hitch.NamedSourcePromises.ready(function () {
+    // wire up some ui...
+    var el = document.getElementById("later");
+    var target = document.getElementById("target");
+    var template = document.getElementById('template');
+    el.innerHTML = "Interpret and Apply...";
+    el.classList.add("btn-success");
+    $(el).on('click', function () {
+
+        /*
+            Only on user interaction do I eval the code
+           compile the template and apply the data...
+        */
+        Hitch.NamedSourcePromises.resolve("my.handlebars.code").then(
+            function(){
+                var tmpl = Handlebars.compile(
+                    template.innerHTML
+                );
+
+                target.innerHTML = tmpl(
+                    Hitch.NamedSourcePromises.resolve(
+                        "my.twitter.data"
+                    )
+                );
+            }
+        );
+    });
+});
+    </script>
+   <p>This causes the page to <em>asynchronously</em> load the sources for
+        Handlebars and JSON from Twitter's
+        Github example prior to DOMContentLoaded, but not process them.
+
+        When it is all done, I use the code below to light up a button.
+        Clicking on the lit button will then process and use that code and data to
+        render into the page... </p>
+    <pre class="enabled"><script>document.write(document.getElementById("codescript").innerHTML);</script></pre>
+    <div>
+        <button id="later" class="btn" style="clear: both;">Loading...</button>
+    </div>
+    <div style="margin-top: 5em;" id="target">
+
+    </div>
+
+
+    <script id="template" type="text/x-handlebars">
+        <div style="margin: 2em; padding: 2em; background-image: url('{{user.profile_background_image_url}}')">
+            <img style="border: 1px solid gray; float: left; padding: 0.5em; margin: 0 3em 3em 3em;" src="{{user.profile_image_url}}">
+            <div>{{user.description}}</div>
+            <div><strong>Following:</strong> {{user.friends_count}}</div>
+            <div><strong>Followers:</strong> {{user.followers_count}}</div>
+            <div><strong>User:</strong> {{user.screen_name}}</div>
+            <div><strong>Location:</strong> {{user.location}}</div>
+        </div>
     </script>
 
-    <hr />
-
-
-    <h2>Demo - Source Code</h2>
-    <button class="btn btn-info" onclick="document.getElementById('demo_source').classList.toggle('enabled')">Toggle code view</button>
-    <p>Here's the commented source code as used in this demo...It's pretty straightforward.</p>
-
-    <pre id="demo_source"></pre>
-    <script>
-        document.getElementById("demo_source").innerHTML = document.getElementById('demo_definition').innerHTML;
-    </script>
-
-    <hr />
     </p>
 
 
@@ -415,7 +409,7 @@ listObserver.on( "done", function() {
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
+    <div>test<div>test<div>test<div>test</div></div>div>test<div>test</div></div><div>test<div>test</div></div></div></div>
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
@@ -684,7 +678,7 @@ listObserver.on( "done", function() {
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
+    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>testdiv></div></div></div>
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
     <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>

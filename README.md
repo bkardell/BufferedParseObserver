@@ -12,4 +12,4 @@ Most of these prollyfills currently use DOMContentLoaded but we'd like to get th
 
 Can we do better?  
 ==================
-I'm not really sure, but I'd like to try.  Here is a proposal to get things rolling. 
+I'm not really sure, but I'd like to try.  Here is a proposal to get things rolling [https://github.com/bkardell/BufferedParseObserver/blob/master/proposal.md](https://github.com/bkardell/BufferedParseObserver/blob/master/proposal.md) and a demo which collects data via firebase so we can discuss: [https://bkardell.github.io/BufferedParseObserver](https://bkardell.github.io/BufferedParseObserver)

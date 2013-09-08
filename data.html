@@ -71,11 +71,11 @@
                                             <td class="withObserver">BufferedParseObserver({{@key}})</td>
                                             <td><span class="avg">{{avg}}ms DOMContentLoaded</span>
                                                     {{#each rundata}}
-                                                        <div class="runRecord">Run #{{@index}}
+                                                        <div class="runRecord">Run #{{@index}} ({{mode}})
                                                             <table>
                                                                 {{#each notifications}}
                                                                     <tr>
-                                                                        <td>{{size}} elements observed @ {{at}}ms</td>
+                                                                        <td>{{size}} elements observed @ {{at}}ms </td>
                                                                     </tr>
                                                                 {{/each}}
                                                             </table>
@@ -86,7 +86,11 @@
                                 {{/each}}
                                 <tr>
                                     <td class="withoutObserver">Without BufferedParseObserver</td>
-                                    <td>{{noParseObserver.avg}}ms DOMContentLoaded</td>
+                                    <td>{{#if noParseObserver.avg}}
+                                        {{noParseObserver.avg}}ms DOMContentLoaded
+                                        {{else}}
+                                        <span style="color:gray">no data available</span>
+                                        {{/if}}</td>
                                 </tr>
                             </table>    
                         </li>
@@ -145,6 +149,7 @@ var normalizeTheData = function (d) {
             ret[rec.sampleSize][rec.userAgent][which][rec.tag].rundata.push({
                 "DOMContentLoaded": rec.DOMContentLoaded,
                 "done": rec.done, 
+                "mode": rec.mode, 
                 "notifications": rec.notifications, 
                 "withoutObserver": rec.withoutObserver
             });

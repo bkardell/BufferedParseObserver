@@ -1,0 +1,180 @@
+<!doctype html>
+<html>
+    <head>
+    	<!-- Add 1 script off a CDN as we might for a standard page...  -->
+        <script src="//codeorigin.jquery.com/jquery-1.10.2.min.js"></script>
+
+        <script src="https://rawgithub.com/wycats/handlebars.js/1.0.0/dist/handlebars.js"></script>
+
+        <!-- Add some CSS as we might for a standard page... -->
+        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css">
+        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-theme.min.css">
+
+
+       <style>
+            textarea, pre{ width: 95%; overflow: auto; }
+            textarea:not(.enabled), pre:not(.enabled) { display: none; }
+            body{ margin: 2em; }
+            button{ margin-right: 2em; float: right; }
+            p { margin-bottom: 2em; }
+            input,select{ display: block; width: 26em; margin-top: 0.5em; }
+            form{
+                width: 35em;
+                border: 1px solid gray;
+                padding: 3em;
+                text-align:
+                center; margin: 2em auto; 
+            }
+            .userAgent>li div {
+                font-weight: bold;
+            }
+            .userAgent table {
+                margin-left: 2em;
+                border: 1px solid gray;
+                width: 100em;
+            }
+            .userAgent table tr>td {
+                border: 1px solid gray;
+                padding: 0.25em 1em;
+            }
+            .userAgent table tr>td:nth-child(1) {
+                width: 20em;
+            }
+            .runRecord {
+                margin-left: 2em;
+            }
+            span.avg {
+                font-weight: bold;
+                color: blue;
+            }
+            .runRecord td:nth-child(1) {
+                color: green;
+            }
+        </style>
+
+
+
+    </head>
+    <body>
+    
+   <script type="text/x-handlebars" id="templ">
+        <ul class="numElements">
+        {{#each .}}
+            <li><span>{{@key}} Div Elements Sample Size</span>
+                <ul class="userAgent">
+                    {{#each .}}
+                        <li><span>{{@key}}</span>
+                            
+                            <table>
+                                {{#each parseObserver}}
+                                        <tr>
+                                            <td class="withObserver">BufferedParseObserver({{@key}})</td>
+                                            <td><span class="avg">{{avg}}ms DOMContentLoaded</span>
+                                                    {{#each rundata}}
+                                                        <div class="runRecord">Run #{{@index}}
+                                                            <table>
+                                                                {{#each notifications}}
+                                                                    <tr>
+                                                                        <td>{{size}} elements observed @ {{at}}ms</td>
+                                                                    </tr>
+                                                                {{/each}}
+                                                            </table>
+                                                        </div>
+                                                    {{/each}}
+                                            </td>
+                                        </tr>
+                                {{/each}}
+                                <tr>
+                                    <td class="withoutObserver">Without BufferedParseObserver</td>
+                                    <td>{{noParseObserver.avg}}ms DOMContentLoaded</td>
+                                </tr>
+                            </table>    
+                        </li>
+                    {{/each}}
+                </ul>
+            </li>
+        {{/each}}
+        </div>
+   </script>
+
+    <script>
+
+var normalizeTheData = function (d) {
+    var ret = {};
+    var keys = Object.keys(d);
+    var which;
+    keys.forEach(function (key) {
+        var rec = d[key];
+        
+        rec.tag = rec.tag || "";
+        // group them by sample size, create if doesn't exist
+        ret[rec.sampleSize] = 
+            ret[rec.sampleSize] || {};
+        
+        // next by user agent string
+        ret[rec.sampleSize][rec.userAgent] = 
+            ret[rec.sampleSize][rec.userAgent] || { 
+                "noParseObserver": { 
+                    "ct": 0, 
+                    "totalTime": 0 
+                }, 
+                "parseObserver": {}
+            };
+        
+       
+        which = (rec.tag === "") ? "noParseObserver" : "parseObserver";
+        
+        // then by whether it has an observer
+        if (which === "parseObserver") {
+            ret[rec.sampleSize][rec.userAgent][which][rec.tag] = 
+                ret[rec.sampleSize][rec.userAgent][which][rec.tag] || {
+                    "ct": 0, 
+                    "totalTime": 0, 
+                    "rundata": [] 
+                };
+
+            ret[rec.sampleSize][rec.userAgent][which][rec.tag].ct++;
+            ret[rec.sampleSize][rec.userAgent][which][rec.tag].totalTime += rec.DOMContentLoaded;
+
+            ret[rec.sampleSize][rec.userAgent][which][rec.tag].avg =
+                Math.round(
+                    ret[rec.sampleSize][rec.userAgent][which][rec.tag].totalTime / 
+                    ret[rec.sampleSize][rec.userAgent][which][rec.tag].ct
+                );
+
+            ret[rec.sampleSize][rec.userAgent][which][rec.tag].rundata.push({
+                "DOMContentLoaded": rec.DOMContentLoaded,
+                "done": rec.done, 
+                "notifications": rec.notifications, 
+                "withoutObserver": rec.withoutObserver
+            });
+        } else {
+
+            ret[rec.sampleSize][rec.userAgent][which].ct++;
+            ret[rec.sampleSize][rec.userAgent][which].totalTime += rec.DOMContentLoaded;
+
+            ret[rec.sampleSize][rec.userAgent][which].avg =
+                Math.round(
+                    ret[rec.sampleSize][rec.userAgent][which].totalTime / 
+                    ret[rec.sampleSize][rec.userAgent][which].ct
+                );   
+        }
+       
+    });
+
+    // when this is all done
+    return ret;
+}; 
+
+
+$.getJSON("https://buffered-reader.firebaseio.com/perf.json").then(function(data){
+    var normalizedData = normalizeTheData(data);
+    var tmpl = Handlebars.compile($("#templ").html());
+    $("body").append(tmpl(normalizedData));
+    
+});
+    </script>
+
+    </body>
+
+</html>

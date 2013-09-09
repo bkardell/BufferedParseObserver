@@ -77,7 +77,7 @@
     </p>
     <p>
         Authors may register callback via <code>NamedSourcePromises.ready(fn)</code>.
-        Inside of this callback, authors may use <code>NamedSourcePromises.resolve(<em>promiseId</em>)</code>
+        Inside of this callback, authors may use <code>NamedSourcePromises.use(<em>promiseId</em>)</code>
         to interpret the source based on the specified subtype or explicitly use <code>NamedSourcePromises.text</code>
         to access the text, <code>Hitch.promised.script</code> to evaluate it as script,
         or <code>NamedSourcePromises.json</code> to parse it as JSON.

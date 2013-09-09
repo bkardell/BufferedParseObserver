@@ -33,13 +33,13 @@
                 for ( var i=0;i<arguments.length;i++) {
                     window.eval(results[arguments[i]]);
                 }
-                /* this is silly */
+                /* is this silly? */
                 return new RSVP.Promise(function (resolve) {resolve(); });
             },
             text: function (id) {
                 return results[id];
             },
-            resolve: function (id) {
+            use: function (id) {
                 var t = document.querySelector("[data-promise='" + id + "']").getAttribute("type").split("-");
                 t = (t.length === 3) ? t[2] : "text";
                 return resolvers[t](id);

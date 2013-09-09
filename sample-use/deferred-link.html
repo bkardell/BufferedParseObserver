@@ -10,21 +10,21 @@
     <link type="text/x-promised-script"
         data-src="https://rawgithub.com/wycats/handlebars.js/1.0.0/dist/handlebars.js"
         data-promise="my.handlebars.code">
-    
+
     <script>
       var config = { additionalMultiplier: 0 };
       ProllyfillRoot = Hitch = {};
     </script>
-    
+
     <script src="../dist/BufferedParseObserver.js"></script>
-   
+
 
 
       <!-- Add 1 script off a CDN as we might for a standard page...  -->
       <script src="//codeorigin.jquery.com/jquery-1.10.2.min.js"></script>
 
       <script src="../sample-lib/deferred-links.js"></script>
-      
+
       </script>
 
       <!-- Add some CSS as we might for a standard page... -->
@@ -44,7 +44,7 @@
               border: 1px solid gray;
               padding: 3em;
               text-align:
-              center; margin: 2em auto; 
+              center; margin: 2em auto;
           }
           .note{
             font-style : italic;
@@ -72,7 +72,7 @@
         <code>text/x-promised-script</code> and <code>text/x-promised-json</code>.
         These tags MUST include a <code>data-src</code> attribute indicating the URL from
         which the resource should be loaded, and a <code>data-promise</code> attribute
-        indicating a unique promise name.  The environment maintains an object for 
+        indicating a unique promise name.  The environment maintains an object for
         dealing with named promises called <code>NamedSourcePromises</code>.
     </p>
     <p>
@@ -82,10 +82,10 @@
         to access the text, <code>Hitch.promised.script</code> to evaluate it as script,
         or <code>NamedSourcePromises.json</code> to parse it as JSON.
     </p>
-    <p class="note">A note on the prollyfill being demonstrated here: Functions are written such that authors 
-      may provide a <code>window.ProllyfillRoot</code> object which the API will be attacted to for forward compatability.  If 
-      none is provided, the functions are attached to <code>window</code>. For the demo, I am setting this  
-      so that all examples below are attached to the <code>Hitch</code> object.</p>.  This prollyfill is also potentially 
+    <p class="note">A note on the prollyfill being demonstrated here: Functions are written such that authors
+      may provide a <code>window.ProllyfillRoot</code> object which the API will be attacted to for forward compatability.  If
+      none is provided, the functions are attached to <code>window</code>. For the demo, I am setting this
+      so that all examples below are attached to the <code>Hitch</code> object.</p>.  This prollyfill is also potentially
       naieve as it relies on jQuery and I wrote it in short order as a simple demonstration.
     <p>
         <h5>The demo...</h5>
@@ -117,7 +117,7 @@ Hitch.NamedSourcePromises.ready(function () {
             Only on user interaction do I eval the code
            compile the template and apply the data...
         */
-        Hitch.NamedSourcePromises.resolve("my.handlebars.code").then(
+        Hitch.NamedSourcePromises.use("my.handlebars.code").then(
             function(){
                 var tmpl = Handlebars.compile(
                     template.innerHTML

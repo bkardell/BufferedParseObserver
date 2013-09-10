@@ -76,11 +76,22 @@
         dealing with named promises called <code>NamedSourcePromises</code>.
     </p>
     <p>
-        Authors may register callback via <code>NamedSourcePromises.ready(fn)</code>.
+        Authors may optionally set a <code>data-on</code> attribute to signify deferral of the download 
+        itself.  Valid values are <code>DOMContentLoaded</code> and <code>load</code>.  Any unknown value 
+        is treated as if no value is present and requests are made ASAP.
+    </p>
+    <p>
+        Authors may register callback via <code>NamedSourcePromises.ready(fn)</code>.  This is fired when the 
+        <code>BufferedParseObserver.done()</code> occurs.  
         Inside of this callback, authors may use <code>NamedSourcePromises.use(<em>promiseId</em>)</code>
         to interpret the source based on the specified subtype or explicitly use <code>NamedSourcePromises.text</code>
         to access the text, <code>Hitch.promised.script</code> to evaluate it as script,
-        or <code>NamedSourcePromises.json</code> to parse it as JSON.
+        or <code>NamedSourcePromises.json</code> to parse it as JSON. 
+    </p>
+    <p>
+        As the <code>ready</code> callback is coarse grained and downloads can be deferred, it may be more desirable to 
+        execute code at a more specific time.  To this end, authors may use <code>NamedSourcePromises.when(<em>promiseId_a, promiseId_b</em>)</code> 
+        which returns a promise that is resolved upon the receipt of those specific sources.
     </p>
     <p class="note">A note on the prollyfill being demonstrated here: Functions are written such that authors
       may provide a <code>window.ProllyfillRoot</code> object which the API will be attacted to for forward compatability.  If
@@ -102,6 +113,13 @@
 
         </pre>
     </p>
+
+    <script>
+        Hitch.NamedSourcePromises.when("my.handlebars.code").then(function(){
+            document.title = "handlebars code loaded...";
+        });
+    </script>
+
     <script id="codescript">
 /* The sources are loaded, but not evaluated... */
 Hitch.NamedSourcePromises.ready(function () {
@@ -124,7 +142,7 @@ Hitch.NamedSourcePromises.ready(function () {
                 );
 
                 target.innerHTML = tmpl(
-                    Hitch.NamedSourcePromises.resolve(
+                    Hitch.NamedSourcePromises.use(
                         "my.twitter.data"
                     )
                 );

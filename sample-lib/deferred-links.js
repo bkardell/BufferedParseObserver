@@ -1,16 +1,29 @@
 (function (prollyfillRoot) {
    prollyfillRoot.NamedSourcePromises = (function () {
-        var results = {}, typestr;
+        var NamedPromises = {}, typestr;
         var listObserver = new prollyfillRoot.BufferedParseObserver('link', 'setImmediate');
+        var lookup = function (name) {
+            return NamedPromises[name].fulfillmentValue;
+        };
         var makePromise = function (el) {
-            return $.ajax(
-                {
-                    url: el.getAttribute("data-src"),
-                    dataType: 'text',
-                    mimeType: 'text'
-                }).then(function (data) {
-                    results[el.getAttribute("data-promise")] = data;
-                });
+            // when does the work initiate?
+            var evtName = el.getAttribute("data-on");
+            var promiseName = el.getAttribute("data-promise");
+            var config = {
+                url: el.getAttribute("data-src"),
+                dataType: 'text',
+                mimeType: 'text'
+            };
+            NamedPromises[promiseName] = new RSVP.Promise(function (resolve, reject) {
+                if ( /DOMContentLoaded|load/.test(evtName) ) {
+                    window.addEventListener(evtName, function () {
+                        $.ajax(config).then(function (data) { resolve(data) });
+                    });
+                } else {
+                    $.ajax(config).then(function (data) { resolve(data) });
+                }
+            });
+            return NamedPromises[promiseName];
         };
         listObserver.on("notify", function(arr) {
             var el, promises = [];
@@ -26,19 +39,22 @@
 
 
         var resolvers = {
-            json: function (id) {
-                return JSON.parse(results[id]);
-            },
-            script: function () {
-                for ( var i=0;i<arguments.length;i++) {
-                    window.eval(results[arguments[i]]);
+            when: function () {
+                var promises = [], promise;
+                for (var i=0; i<arguments.length; i++) {
+                    promises.push(NamedPromises[arguments[i]]);
                 }
+                return RSVP.all(promises);
+            }, 
+            json: function (id) {
+                return JSON.parse(lookup(id));
+            },
+            script: function (id) {
+                window.eval(lookup(id));
                 /* is this silly? */
                 return new RSVP.Promise(function (resolve) {resolve(); });
             },
-            text: function (id) {
-                return results[id];
-            },
+            text: lookup,
             use: function (id) {
                 var t = document.querySelector("[data-promise='" + id + "']").getAttribute("type").split("-");
                 t = (t.length === 3) ? t[2] : "text";

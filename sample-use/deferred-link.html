@@ -46,10 +46,15 @@
               text-align:
               center; margin: 2em auto;
           }
+          table,td{ border: 1px solid gray; }
+          table { border-collapse: collapse; }
+          td { padding: 0.5em 2em; }
+          td:nth-child(1){ font-weight: bold; font-family: "Courier New", Courier, monospace; }
           .note{
             font-style : italic;
             color: gray;
           }
+          .typeresolution{ color: green; }
       </style>
 
 
@@ -57,50 +62,134 @@
     </head>
     <body>
 
-
-    <p>
-        A semi-contrived example demonstrating a really simple (and naive)
-        prollyfill for "lazy load/lazy deferred assets" using <a href="../index.html"><code>BufferedParseObserver</code></a>.  Basically the proposal
-        would look something like this (note: this is not a real proposal)...
+    <h1>Promised Sources</h1>
+    <p class="note">
+        This is a proposal and prollyfill for "lazily loaded/deferred assets" using <a href="../index.html"><code>BufferedParseObserver</code></a>.
     </p>
+    <h2>&lt;link type="<code>text/x-promised</code>"...&gt;</h2>
     <p>
-        <h5>The proposal: Promised Linked Sources</h5>
-        Authors may include <code>&lt;link&gt;</code> tags with a custom
-        <code>type="text/x-promised"</code> attribute can be added to declaratively
+        Authors may include <code>&lt;link&gt;</code> tags with the 
+        <code>type="text/x-promised"</code> to declaratively
         indicate a lazy fetch of text early (prior to DOMContentLoaded).
         Fetched items are not interpreted, but  may specify subtypes which allow easy processing upon demand.  These may be
-        <code>text/x-promised-script</code> and <code>text/x-promised-json</code>.
+        <code>text/x-promised-script</code> and <code>text/x-promised-json</code>, or author provided 
+        extensions (see below).
+    </p>
+    <p>
         These tags MUST include a <code>data-src</code> attribute indicating the URL from
         which the resource should be loaded, and a <code>data-promise</code> attribute
-        indicating a unique promise name.  The environment maintains an object for
-        dealing with named promises called <code>NamedSourcePromises</code>.
+        indicating a unique promise name.
     </p>
     <p>
         Authors may optionally set a <code>data-on</code> attribute to signify deferral of the download 
         itself.  Valid values are <code>DOMContentLoaded</code> and <code>load</code>.  Any unknown value 
         is treated as if no value is present and requests are made ASAP.
     </p>
-    <p>
-        Authors may register callback via <code>NamedSourcePromises.ready(fn)</code>.  This is fired when the 
-        <code>BufferedParseObserver.done()</code> occurs.  
-        Inside of this callback, authors may use <code>NamedSourcePromises.use(<em>promiseId</em>)</code>
-        to interpret the source based on the specified subtype or explicitly use <code>NamedSourcePromises.text</code>
-        to access the text, <code>Hitch.promised.script</code> to evaluate it as script,
-        or <code>NamedSourcePromises.json</code> to parse it as JSON. 
+    <pre class="enabled">&lt;!-- All of these initiate an async request/promise script source and are not evaluated until you access. --&gt;
+
+&lt;!-- initiate ASAP --&gt;
+&lt;link type="text/x-promised-script" 
+    data-promise="lazy.evaled.script" 
+    data-src="something.js"&gt;
+
+&lt;!-- initiate upon DOMContentLoaded --&gt;
+&lt;link type="text/x-promised-json" 
+    data-promise="lazy.evaled.script2" 
+    data-src="something-else.js" 
+    data-on="DOMContentLoaded"&gt;
+
+&lt;!-- initiate upon load --&gt;
+&lt;link type="text/x-promised" 
+    data-promise="lazy.evaled.script3" 
+    data-src="something-else-still.js" 
+    data-on="load"&gt;
+    </pre>
+
+    <h2><code>NamedSourcePromises</code></h2>
+    <p> The environment exposes an object for dealing with named promises called <code>NamedSourcePromises</code>:
+        <table>
+            <tr>
+                <td class="method typeresolution">text( <em>promiseId</em> )</td>
+                <td class="desc">Returns the source text of the network request</td>
+            </tr>
+            <tr>
+                <td class="method typeresolution">json( <em>promiseId</em> )</td>
+                <td class="desc">Parses the source text of the network request as JSON and returns</td>
+            </tr>
+            <tr>
+                <td class="method typeresolution">script( <em>promiseId</em> )</td>
+                <td class="desc">eval()'s' the source text of the network request and returns</td>
+            </tr>
+            <tr>
+                <td class="method">use( <em>promiseId</em> )</td>
+                <td class="desc">Automatically call the appropriate method (json, script, etc) based on the extended type specified in the link.</td>
+            </tr>
+            <tr>
+                <td class="method">ready( <em>callback</em> )</td>
+                <td class="desc">A method indicating that <em>all</em> source promises made during parse have been resolved<sup>*</sup>.</td>
+            </tr>
+            <tr>
+                <td class="method">when( <em>promiseId | [promiseId]</em> )</td>
+                <td class="desc">Returns a standard promise for one or more named promises and auto-interprets values via <code>use()</code>.</td>
+            </tr>
+        </table>
+        <em><sup>*</sup>Note that because authors may defer via the optional <code>data-on</code> attribute, this may happen comparatively late.  Authors are advised to use the more granular <code>when</code> as appropriate.</em>
     </p>
+
+    <h3><code>use(<em>promiseId</em>)</code> and <code>type</code> interpreters</h3>
     <p>
-        As the <code>ready</code> callback is coarse grained and downloads can be deferred, it may be more desirable to 
-        execute code at a more specific time.  To this end, authors may use <code>NamedSourcePromises.when(<em>promiseId_a, promiseId_b</em>)</code> 
-        which returns a promise that is resolved upon the receipt of those specific sources.
+        <code>use(<em>promiseId</em>)</code> will attempt to locate a method on the <code>NamedSourcePromises</code> object matching the extended type of the corresponding <code>&lt;link&gt;</code> that made the promise, thus, it is possible for authors to add new type interpreters by simply adding a method to the <code>NamedSourcePromises</code> object.
     </p>
+    <pre class="enabled">&lt;!-- Contrived, but if you shipped handlebars with your page, you might make a compiler type --&gt;
+&lt;link type="text/x-promised-handlebars" data-promise="foo" data-src="sometemplate.handlebars"&gt;
+    
+&lt;script&gt;
+    /* Automatically pipe x-promised-handlebars through here on <code>use()</code> */
+    NamedSourcePromises.handlebars = function (promiseId) {
+        return Handlebars.compile( NamedSourcePromises.text(promiseId) );
+    };
+&lt;/script&gt;
+    </pre> 
+
+    <h2>&lt;script type="<code>text/x-promise-deferred</code>"...&gt;</h2>
+    <p>Authors may include <code>&lt;script&gt;</code> tags with the 
+        <code>type="text/x-promise-deferred"</code> attribute to declaratively indicate code which should be deferred until one or more 
+        named promises is resolved.  Note that while this shares minor similarities with dependency management, it is not a replacement.  
+        Instead, this is about managing the loading and blocking evaluation of resources.  Authors are encouraged to use 
+        well established or native dependency management mechanisms for full-fledged on-demand management of graphs.  These scripts are 
+        executed in a context in which they can provide handlers.
+    </p>
+
+    <pre class="enabled">&lt;script type="text/x-promise-deferred" use="my.handlebars.code, my.twitter.data"&gt;
+    exports.resolve = function (h, twitterData) {
+        // wire up some ui...
+        var el = document.getElementById("later");
+        var target = document.getElementById("target");
+        var template = document.getElementById('template');
+        el.innerHTML = "Interpret and Apply...";
+        el.classList.add("btn-success");
+        $(el).on('click', function () {
+            var tmpl = Handlebars.compile(template.innerHTML);
+            target.innerHTML = tmpl(twitterData);
+        });
+    }; 
+    exports.reject = function () { 
+        console.log('ruh roh...rejected'); 
+    };
+&lt;/script&gt;
+    </pre>
+
     <p class="note">A note on the prollyfill being demonstrated here: Functions are written such that authors
       may provide a <code>window.ProllyfillRoot</code> object which the API will be attacted to for forward compatability.  If
       none is provided, the functions are attached to <code>window</code>. For the demo, I am setting this
-      so that all examples below are attached to the <code>Hitch</code> object.</p>.  This prollyfill is also potentially
-      naieve as it relies on jQuery and I wrote it in short order as a simple demonstration.
-    <p>
-        <h5>The demo...</h5>
+      so that all examples below are attached to the <code>Hitch</code> object.  
 
+      This prollyfill is also potentially naieve as it relies on jQuery and I wrote it in short order as a simple demonstration.
+    </p>
+
+    <h5>The demo...</h5>
+
+    <p>
         In this page, I've included these...
         <pre class="enabled">
 &lt;link type="text/x-promised-json"
@@ -120,6 +209,29 @@
         });
     </script>
 
+    <script type="text/x-promise-deferred" use="my.handlebars.code, my.twitter.data">
+        exports.resolve = function (h, twitterData) {
+            // wire up some ui...
+            var el = document.getElementById("later");
+            var target = document.getElementById("target");
+            var template = document.getElementById('template');
+            el.innerHTML = "Interpret and Apply...";
+            el.classList.add("btn-success");
+            $(el).on('click', function () {
+                /*
+                    Only on user interaction do I eval the code
+                    compile the template and apply the data...
+                */
+                var tmpl = Handlebars.compile(template.innerHTML);
+                target.innerHTML = tmpl(twitterData);
+            });
+        }; 
+        exports.reject = function () { 
+            debugger;
+            alert('rejected'); 
+        };
+    </script>
+<!--
     <script id="codescript">
 /* The sources are loaded, but not evaluated... */
 Hitch.NamedSourcePromises.ready(function () {
@@ -149,7 +261,7 @@ Hitch.NamedSourcePromises.ready(function () {
             }
         );
     });
-});
+}); -->
     </script>
    <p>This causes the page to <em>asynchronously</em> load the sources for
         Handlebars and JSON from Twitter's

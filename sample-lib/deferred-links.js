@@ -3,6 +3,25 @@
         var NamedPromises = {}, typestr, NamedPromisesMeta = {};
         var listObserver = new prollyfillRoot.BufferedParseObserver('link', 'setImmediate');
         var scriptObserver = new prollyfillRoot.BufferedParseObserver('script', 'setImmediate');
+        var fetchTextAndPromise = function(url) {
+          var promise = new RSVP.Promise(function(resolve, reject){
+            var client = new XMLHttpRequest();
+            client.open("GET", url);
+            client.onreadystatechange = handler;
+            client.responseType = "text";
+            client.setRequestHeader("Accept", "text");
+            client.send();
+
+            function handler() {
+              if (this.readyState === this.DONE) {
+                if (this.status === 200) { resolve(this.response); }
+                else { reject(this); }
+              }
+            };
+          });
+
+          return promise;
+        };
         var lookup = function (name) {
             return NamedPromises[name.trim()].fulfillmentValue;
         };
@@ -12,20 +31,15 @@
             var promiseName = el.getAttribute("data-promise");
             var typPts = typ.split("-");
             console.log("promised:" + promiseName);
-
-            var config = {
-                url: el.getAttribute("data-src"),
-                dataType: 'text',
-                mimeType: 'text'
-            };
+            var url = el.getAttribute("data-src");
             NamedPromisesMeta[promiseName] = (typPts.length === 3) ? typPts[2] : "text";
             NamedPromises[promiseName] = new RSVP.Promise(function (resolve, reject) {
                 if ( /DOMContentLoaded|load/.test(evtName) ) {
                     window.addEventListener(evtName, function () {
-                        $.ajax(config).then(function (data) { resolve(data) });
+                        fetchTextAndPromise(url).then(function (data) { resolve(data) });
                     });
                 } else {
-                    $.ajax(config).then(function (data) { resolve(data) });
+                    fetchTextAndPromise(url).then(function (data) { resolve(data) });
                 }
             });
             return NamedPromises[promiseName];

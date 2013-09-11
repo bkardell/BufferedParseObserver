@@ -161,7 +161,7 @@
     </p>
 
     <pre class="enabled">&lt;script type="text/x-promise-deferred" use="my.handlebars.code, my.twitter.data"&gt;
-    exports.resolve = function (h, twitterData) {
+    promises.resolved = function (h, twitterData) {
         // wire up some ui...
         var el = document.getElementById("later");
         var target = document.getElementById("target");
@@ -173,8 +173,8 @@
             target.innerHTML = tmpl(twitterData);
         });
     }; 
-    exports.reject = function () { 
-        console.log('ruh roh...rejected'); 
+    promises.rejected = function (err) { 
+        console.err("ruh roh...rejected\n" + err); 
     };
 &lt;/script&gt;
     </pre>
@@ -183,8 +183,6 @@
       may provide a <code>window.ProllyfillRoot</code> object which the API will be attacted to for forward compatability.  If
       none is provided, the functions are attached to <code>window</code>. For the demo, I am setting this
       so that all examples below are attached to the <code>Hitch</code> object.  
-
-      This prollyfill is also potentially naieve as it relies on jQuery and I wrote it in short order as a simple demonstration.
     </p>
 
     <h5>The demo...</h5>
@@ -209,8 +207,17 @@
         });
     </script>
 
+    <script type="text/x-promise-deferred" when="my.handlebars.code, my.twitter.data">
+        promises.resolved = function (h, twitterData) {
+            console.log("got source, not interpreted " + twitterData);
+        }; 
+        promises.rejected = function (err) { 
+            console.error("ruh roh...rejected\n" + err); 
+        };
+    </script>
+
     <script type="text/x-promise-deferred" use="my.handlebars.code, my.twitter.data">
-        exports.resolve = function (h, twitterData) {
+        promises.resolved = function (h, twitterData) {
             // wire up some ui...
             var el = document.getElementById("later");
             var target = document.getElementById("target");
@@ -226,13 +233,12 @@
                 target.innerHTML = tmpl(twitterData);
             });
         }; 
-        exports.reject = function () { 
-            debugger;
-            alert('rejected'); 
+        promises.rejected = function (err) { 
+            console.error("ruh roh...rejected\n" + err); 
         };
     </script>
-<!--
-    <script id="codescript">
+
+    <script id="codescript" type="text/code-sample">
 /* The sources are loaded, but not evaluated... */
 Hitch.NamedSourcePromises.ready(function () {
     // wire up some ui...
@@ -261,7 +267,7 @@ Hitch.NamedSourcePromises.ready(function () {
             }
         );
     });
-}); -->
+}); 
     </script>
    <p>This causes the page to <em>asynchronously</em> load the sources for
         Handlebars and JSON from Twitter's

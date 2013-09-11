@@ -1,15 +1,16 @@
 (function (prollyfillRoot) {
    prollyfillRoot.NamedSourcePromises = (function () {
-        var NamedPromises = {}, typestr;
+        var NamedPromises = {}, typestr, NamedPromisesMeta = {};
         var listObserver = new prollyfillRoot.BufferedParseObserver('link', 'setImmediate');
         var scriptObserver = new prollyfillRoot.BufferedParseObserver('script', 'setImmediate');
         var lookup = function (name) {
             return NamedPromises[name.trim()].fulfillmentValue;
         };
-        var makePromise = function (el) {
+        var makePromise = function (el, typ) {
             // when does the work initiate?
             var evtName = el.getAttribute("data-on");
             var promiseName = el.getAttribute("data-promise");
+            var typPts = typ.split("-");
             console.log("promised:" + promiseName);
 
             var config = {
@@ -17,6 +18,7 @@
                 dataType: 'text',
                 mimeType: 'text'
             };
+            NamedPromisesMeta[promiseName] = (typPts.length === 3) ? typPts[2] : "text";
             NamedPromises[promiseName] = new RSVP.Promise(function (resolve, reject) {
                 if ( /DOMContentLoaded|load/.test(evtName) ) {
                     window.addEventListener(evtName, function () {
@@ -32,9 +34,9 @@
             var el, promises = [];
             for (var i=0; i<arr.length; i++) {
                 el = arr[i];
-                typestr = el.getAttribute("type") || '';
+                typestr = el.getAttribute("type") || 'text';
                 if(typestr.indexOf("text/x-promised") === 0) {
-                    promises.push(makePromise(el));
+                    promises.push(makePromise(el, typestr));
                 }
             }
             return RSVP.all(promises);
@@ -60,52 +62,54 @@
             },
             text: lookup,
             use: function (id) {
-                var t = document.querySelector("[data-promise='" + id.trim() + "']").getAttribute("type").split("-");
-                t = (t.length === 3) ? t[2] : "text";
-                return resolvers[t](id.trim());
+                var id = id.trim();
+                t = NamedPromisesMeta[id];
+                return resolvers[t](id);
             },
             ready: function (fn) {
                 listObserver.on("done", fn);
             }
         };
         var resolveAll = function (typ, arr) {
-            var ret = [];
+            var ret = [], val;
             for (var i=0;i<arr.length;i++) {
-                ret.push(resolvers[typ](arr[i]));
+                val = resolvers[typ](arr[i]);
+                ret.push(val);
             }
             return ret;
         };
-        var promiseScript = function (code, names) {
+        var promiseScript = function (code, names, method) {
             var names = names.split(",");
             console.log("expecting promises:" + names);
             resolvers.when.apply(resolvers, names).then(function () {
-                //debugger;
+                var myargs = arguments[0];
                 console.log("got promises:" + names);
                 (function () {
-                    var exports = {};
+                    var promises = {};
                     eval(code);
-                    exports.resolve.apply(this, resolveAll("use", names));
+                    promises.resolved.apply(this, (method==="when") ? myargs : resolveAll(method, names));
                 }());
 
             }).fail(function () {
-                 (function () {
-                    var exports = {};
-                    //console.log(resolvers.use(name));
+                var myargs = arguments;
+                (function () {
+                    var promises = {};
                     eval(code);
-                    exports.reject.apply(this, arguments);
+                    promises.rejected.apply(this, myargs);
                 }());
             });
   
         };
 
         scriptObserver.on("notify", function (arr) {
-            var el, name;
+            var el, name, method;
             for (var i=0; i<arr.length; i++) {
                 el = arr[i];
-                name = el.getAttribute("use");
+                method = (el.hasAttribute("use")) ? "use" : "when";
+                name = el.getAttribute(method);
                 typestr = el.getAttribute("type") || '';
                 if(typestr === "text/x-promise-deferred") {
-                    promiseScript(el.innerHTML, name);
+                    promiseScript(el.innerHTML, name, method);
                 }
             }
         });

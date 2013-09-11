@@ -12,4 +12,17 @@ Most of these prollyfills currently use DOMContentLoaded but we'd like to get th
 
 Can we do better?  
 ==================
-I'm not really sure, but I'd like to try.  Here is a proposal to get things rolling [https://github.com/bkardell/BufferedParseObserver/blob/master/proposal.md](https://github.com/bkardell/BufferedParseObserver/blob/master/proposal.md) and a demo which collects data via firebase so we can discuss: [https://bkardell.github.io/BufferedParseObserver](https://bkardell.github.io/BufferedParseObserver)
+I'm not really sure, but I'd like to try.... So, here are:
+* A
+[low-level proposal](https://github.com/bkardell/BufferedParseObserver/blob/master/proposal.md) to get things rolling
+* A [demo which collects perf data via firebase so we can discuss](https://bkardell.github.io/BufferedParseObserver).
+* A [link to the collected data](http://bkardell.github.io/BufferedParseObserver/data.html)
+
+Based on this...
+================
+I've put together a kind of [pluggable proposal that provides fairly easy answers to most of the bullets above](http://bkardell.github.io/BufferedParseObserver/sample-use/deferred-link.html), 
+it contains samples/tests/demos inline.
+
+Then what?
+==========
+Discuss on the [public-nextweb@w3.org](W3C Extensible Web Group), fork, file issue... Have at it.

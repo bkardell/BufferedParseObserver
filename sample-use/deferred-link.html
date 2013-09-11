@@ -10,21 +10,36 @@
     <link type="text/x-promised-script"
         data-src="https://rawgithub.com/wycats/handlebars.js/1.0.0/dist/handlebars.js"
         data-promise="my.handlebars.code">
-    
+
+    <link type="text/x-promised-handlebars" 
+        data-promise="my.twitter.template" 
+        data-src="test3.html">
+
+
+    <link type="text/x-promised-exports" 
+        data-promise="my.exporting.script" 
+        data-src="exports-test.js">
+
     <script>
       var config = { additionalMultiplier: 0 };
       ProllyfillRoot = Hitch = {};
     </script>
-    
+
     <script src="../dist/BufferedParseObserver.js"></script>
-   
+
 
 
       <!-- Add 1 script off a CDN as we might for a standard page...  -->
       <script src="//codeorigin.jquery.com/jquery-1.10.2.min.js"></script>
 
       <script src="../sample-lib/deferred-links.js"></script>
-      
+      <script>
+        /* For demo'ing custom type stuff, mounted on Hitch as the prollyfill root...  */
+        Hitch.NamedSourcePromises.types.handlebars = function (promiseId) {
+            return Handlebars.compile( Hitch.NamedSourcePromises.types.text(promiseId) );
+        };
+      </script>
+
       </script>
 
       <!-- Add some CSS as we might for a standard page... -->
@@ -33,23 +48,34 @@
 
 
      <style>
+          h1{ font-size: 1.5em; }
+          h2{ font-size: 1.4em; }
+          h3{ font-size: 1.3em; }
+          h4{ font-size: 1.2em; }
+          h5{ font-size: 1.1em; }
           textarea, pre{ width: 95%; overflow: auto; }
           textarea:not(.enabled), pre:not(.enabled) { display: none; }
           body{ margin: 2em; }
           button{ margin-right: 2em; float: right; }
           p { margin-bottom: 2em; }
           input,select{ display: block; width: 26em; margin-top: 0.5em; }
+          section{ padding: 2em 2em 4em 2em; border-bottom: 1px solid gray; }
           form{
               width: 35em;
               border: 1px solid gray;
               padding: 3em;
               text-align:
-              center; margin: 2em auto; 
+              center; margin: 2em auto;
           }
+          table,td{ border: 1px solid gray; }
+          table { border-collapse: collapse; }
+          td { padding: 0.5em 2em; }
+          td:nth-child(1){ font-weight: bold; font-family: "Courier New", Courier, monospace; }
           .note{
             font-style : italic;
             color: gray;
           }
+          .typeresolution{ color: green; }
       </style>
 
 
@@ -57,771 +83,346 @@
     </head>
     <body>
 
+    <h1>Asynchronous &lt;link&gt;'ing and Promising</h1>
+    <p>Managing resource loading and blocking is an increasingly hard problem on the Web.  For years now we have 
+        worked with the humble <code>&lt;script&gt;</code> tag and tried to use ideas like <code>deferred</code> 
+        that never really worked quite right or gave us what we wanted/neeeded.  We've used events like 
+        <code>load</code> and <code>DOMContentLoaded</code> to meet our needs in the meantime, but how to make 
+        this better has been the subject of many a IRC or mailing list discussion.  More recently, with the 
+        advent of <a href="http://prollyfill.org">prollyfills</a> and movements to 
+        <a href="http://extensiblewebmanifesto.org">#extendthewebforward</a> these approaches are increasingly 
+        lackluster and offer low fidelity to things we are trying to accomplish.  
+        Thus, in the spirit of the <a href="http://extensiblewebmanifesto.org">Extensible Web Manifesto</a>
+        I would like to offer that we don't know which high level things are best, which make life 
+        significantly better and which are just noise - we need to experiment.  This proposal attempts to 
+        provide <em>potential</em> answers and generate meaningful discussion to tighten the feedback loop.
+        It is based on lower-level features provided here by <a href="../index.html"><code>BufferedParseObserver</code></a>, 
+        <code>promises</code> and <code>XMLHttpRequest</code>.  Note that many of the examples in this document, 
+        while interesting, are a bit contrived - the real use cases where I believe this plays in handy have more to 
+        do with adding capabilities in general (prollyfills).
+    <p>
 
-    <p>
-        A semi-contrived example demonstrating a really simple (and naive)
-        prollyfill for "lazy load/lazy deferred assets" using <a href="../index.html"><code>BufferedParseObserver</code></a>.  Basically the proposal
-        would look something like this (note: this is not a real proposal)...
-    </p>
-    <p>
-        <h5>The proposal: Promised Linked Sources</h5>
-        Authors may include <code>&lt;link&gt;</code> tags with a custom
-        <code>type="text/x-promised"</code> attribute can be added to declaratively
-        indicate a lazy fetch of text early (prior to DOMContentLoaded).
-        Fetched items are not interpreted, but  may specify subtypes which allow easy processing upon demand.  These may be
-        <code>text/x-promised-script</code> and <code>text/x-promised-json</code>.
-        These tags MUST include a <code>data-src</code> attribute indicating the URL from
-        which the resource should be loaded, and a <code>data-promise</code> attribute
-        indicating a unique promise name.  The environment maintains an object for 
-        dealing with named promises called <code>NamedSourcePromises</code>.
-    </p>
-    <p>
-        Authors may register callback via <code>NamedSourcePromises.ready(fn)</code>.
-        Inside of this callback, authors may use <code>NamedSourcePromises.resolve(<em>promiseId</em>)</code>
-        to interpret the source based on the specified subtype or explicitly use <code>NamedSourcePromises.text</code>
-        to access the text, <code>Hitch.promised.script</code> to evaluate it as script,
-        or <code>NamedSourcePromises.json</code> to parse it as JSON.
-    </p>
-    <p class="note">A note on the prollyfill being demonstrated here: Functions are written such that authors 
-      may provide a <code>window.ProllyfillRoot</code> object which the API will be attacted to for forward compatability.  If 
-      none is provided, the functions are attached to <code>window</code>. For the demo, I am setting this  
-      so that all examples below are attached to the <code>Hitch</code> object.</p>.  This prollyfill is also potentially 
-      naieve as it relies on jQuery and I wrote it in short order as a simple demonstration.
-    <p>
-        <h5>The demo...</h5>
+    <section>
+        <h2>Basic promising via <code>&lt;link&gt;</code></h2>
+        <p>
+            This proposal introduces the concept of using the &lt;link&gt; to promise source code.  In order to be 
+            a promised link, it MUST include two attributes <code>data-src</code> specifying the URL from 
+            which the source should be fetched and <code>data-promise</code> creating an author-specified 
+            name for the promise.  Names can be any valid attribute value, exluding commas.
+            Setting only these two attributes will cause the source to be 
+            downloaded async as noticed during (buffered) parse, but not interpreted.  The assumed type 
+            of any link containing these attributes is &lt;link type="text/x-promised-text"&gt; (see more below 
+            on using alternate subtypes).  
+            <pre class="enabled">&lt;!-- Begin async download ASAP, create a named promise don't interpet --&gt;
+&lt;link data-src="test1.js" data-promise="test.1"&gt;</pre>
+        </p>
+        <p>The environment maintains a hash of <code>NamedSourcePromises</code> 
+            and exposes these in both imperative and declarative forms (explained in detail in this document).  
+        </p>
+        <h2>Deferring <code>&lt;script&gt;</code> based on <code>NamedSourcePromises</code></h2>
+        <p>
+            This proposal also introduces the concept of the <code>text/x-promise-deferred</code> script type.
+            Using this, authors can provide an attribute to signify that execution of the actual script 
+            requires something promised.  One way to do this is with the <code>data-when</code> attribute which 
+            signifies one or more (comma separated) named promises. 
+            Scripts of this type are passed a <code>promises</code> object and may provide handlers for the 
+            <code>resolved</code> and <code>rejected</code> states:
+        </p>
+        <pre class="enabled">&lt;script type="text/x-promise-deferred" data-when="test.1"&gt;
+    promises.resolved = function (source) {
+        document.getElementById("test1").innerHTML = "Received (but didn't execute) promised source: \n" + source;
+    }
+    promises.rejected = function (err) {
+        document.getElementById("test1").innerHTML = err;
+    }
+&lt;/script&gt;</pre>
+        <h3>Basic Demo</h3>
+        <p>Both of the above examples are included beneath this paragraph in the page, here is their output:</p>
+        <link data-src="test1.js" data-promise="test.1">
+        <pre class="enabled" id="test1"></pre>
+        <script type="text/x-promise-deferred" data-when="test.1">
+            promises.resolved = function (source) {
+                document.getElementById("test1").innerHTML = "Received (but didn't execute) promised source: \n" + source;
+            }
+            promises.rejected = function (err) {
+                document.getElementById("test1").innerHTML = err;
+            }
+        </script>
+    </section>
 
-        In this page, I've included these...
-        <pre class="enabled">
-&lt;link type="text/x-promised-json"
+
+    <section>
+        <h2>Deferring the request of resources</h2>
+        <p> Authors MAY optionally add a <code>data-on</code> attribute to a &lt;link&gt; promise to 
+            signify deferral of the download itself.  Valid values are <code>DOMContentLoaded</code> and <code>load</code>.  
+            Any unknown value is treated as if no value is present and requests are made ASAP.</p>
+         <pre class="enabled">
+&lt;!-- initiate async request ASAP (as buffered/parsed) --&gt;
+&lt;link  data-promise="resource1" data-src="resource1.js"&gt;
+
+&lt;!-- initiate async request upon DOMContentLoaded --&gt;
+&lt;link data-promise="resource2" data-src="resource2.html" data-on="DOMContentLoaded"&gt;
+
+&lt;!-- initiate async request upon load --&gt;
+&lt;link data-promise="resource3" data-src="resource3.json" data-on="load"&gt;
+    </pre>
+    </section>
+
+    <section>
+        <h2>Auto Interpretation via deferred <code>&lt;script&gt;</code> with <code>data-use</code> and &lt;link&gt; types</h2>
+        <p>More often than not, the source itself isn't what you want in your &lt;script&gt;, 
+            more succintly what you are looking for is code that does the downloads asynchronously
+            and then processes sources appropriately when those sources are available so that you 
+            can start using them.  To this end, this proposal offers two pieces which work in concert...
+            First, specifying the type in the &lt;link&gt; provides necessary information 
+            about what kind of source this is and how it should be handled.  
+        </p>
+        <pre class="enabled">&lt;link type="text/x-promised-json"
     data-src="https://rawgithub.com/gnip/764239/raw/6c6a2297f3e4e29a626f07db0c57b45af7d7e5d7/Twitter+%28json+format%29.js"
     data-promise="my.twitter.data"&gt;
-
-&lt;link type="text/x-promised-script"
-    data-src="https://rawgithub.com/wycats/handlebars.js/1.0.0/dist/handlebars.js"
-    data-promise="my.handlebars.code"&gt;
-
         </pre>
-    </p>
-    <script id="codescript">
-/* The sources are loaded, but not evaluated... */
-Hitch.NamedSourcePromises.ready(function () {
-    // wire up some ui...
-    var el = document.getElementById("later");
-    var target = document.getElementById("target");
-    var template = document.getElementById('template');
-    el.innerHTML = "Interpret and Apply...";
-    el.classList.add("btn-success");
-    $(el).on('click', function () {
-
-        /*
-            Only on user interaction do I eval the code
-           compile the template and apply the data...
-        */
-        Hitch.NamedSourcePromises.resolve("my.handlebars.code").then(
-            function(){
-                var tmpl = Handlebars.compile(
-                    template.innerHTML
-                );
-
-                target.innerHTML = tmpl(
-                    Hitch.NamedSourcePromises.resolve(
-                        "my.twitter.data"
-                    )
-                );
+        <p>In coordination with this, 
+            authors MAY specify the &lt;data-use&gt; attribute on a deferred promise &lt;script&gt;.  
+            This causes the appropriate interpreter to look up and interpret results which are passed in to 
+            the provided <code>resolved</code> method (for details on this see <a href="#">something</a>)
+        </p>
+        <pre class="enabled">&lt;script type="text/x-promise-deferred" data-use="my.twitter.data"&gt;
+    promises.resolved = function (data) {
+        document.getElementById("test2").innerHTML = "Received (and interpreted) promised source correctly according to specified type (json): \n" + data.user.name;
+    }
+    promises.rejected = function (err) {
+        document.getElementById("test2").innerHTML = err;
+    }
+&lt;/script&gt;
+        </pre>
+        <h3>Demo</h3>
+        <p>This page includes the &lt;link&gt; specified above in the head and the &lt;script&gt; as specified, 
+            below is their output:
+        </p>
+        <pre class="enabled" id="test2"></pre>
+        <script type="text/x-promise-deferred" data-use="my.twitter.data">
+            promises.resolved = function (data) {
+                document.getElementById("test2").innerHTML = "Received (and interpreted) promised source correctly according to type (json): \n" + data.user.name;
             }
-        );
-    });
-});
-    </script>
-   <p>This causes the page to <em>asynchronously</em> load the sources for
-        Handlebars and JSON from Twitter's
-        Github example prior to DOMContentLoaded, but not process them.
-
-        When it is all done, I use the code below to light up a button.
-        Clicking on the lit button will then process and use that code and data to
-        render into the page... </p>
-    <pre class="enabled"><script>document.write(document.getElementById("codescript").innerHTML);</script></pre>
-    <div>
-        <button id="later" class="btn" style="clear: both;">Loading...</button>
-    </div>
-    <div style="margin-top: 5em;" id="target">
-
-    </div>
+            promises.rejected = function (err) {
+                document.getElementById("test2").innerHTML = err;
+            }
+        </script>
+    </section>
 
 
-    <script id="template" type="text/x-handlebars">
-        <div style="margin: 2em; padding: 2em; background-image: url('{{user.profile_background_image_url}}')">
-            <img style="border: 1px solid gray; float: left; padding: 0.5em; margin: 0 3em 3em 3em;" src="{{user.profile_image_url}}">
-            <div>{{user.description}}</div>
-            <div><strong>Following:</strong> {{user.friends_count}}</div>
-            <div><strong>Followers:</strong> {{user.followers_count}}</div>
-            <div><strong>User:</strong> {{user.screen_name}}</div>
-            <div><strong>Location:</strong> {{user.location}}</div>
-        </div>
-    </script>
+    <section>
+        <h2><code>NamedSourcePromises</code> Imperative API</h2>
+        <p> The environment exposes an object with an impereative API for dealing with named promises called <code>NamedSourcePromises</code>:
+            <table>
+                <tr>
+                    <td class="method typeresolution">types</td>
+                    <td class="desc">An object upon which interpreters hang (see note on <code>use()</code> below.</td>
+                </tr>
+                <tr>
+                    <td class="method">use( <em>promiseId</em> )</td>
+                    <td class="desc">Automatically call the appropriate method (json, script or exported by default, see <a href="#plugins">Adding support for additional type interpreters</a> below) based on the extended type specified in the link.</td>
+                </tr>
+                <tr>
+                    <td class="method">ready( <em>callback</em> )</td>
+                    <td class="desc">A method indicating that <em>all</em> source promises made during parse have been resolved<sup>*</sup>.</td>
+                </tr>
+                <tr>
+                    <td class="method">when( <em>promiseId | [promiseId]</em> )</td>
+                    <td class="desc">Returns a standard promise for one or more named promises and auto-interprets values via <code>use()</code>.</td>
+                </tr>
+            </table>
+            <em><sup>*</sup>Note that because authors may defer via the optional <code>data-on</code> attribute, this may happen comparatively late.  Authors are advised to use the more granular <code>when</code> or <code>use</code> as appropriate.</em>
+        </p>
+        <p>
+            The types object contains, by default:
+            <table>
+                 <tr>
+                    <td class="method typeresolution">text( <em>promiseId</em> )</td>
+                    <td class="desc">Returns the source text of the network request</td>
+                </tr>
+                <tr>
+                    <td class="method typeresolution">json( <em>promiseId</em> )</td>
+                    <td class="desc">Parses the source text of the network request as JSON and returns</td>
+                </tr>
+                <tr>
+                    <td class="method typeresolution">script( <em>promiseId</em> )</td>
+                    <td class="desc">eval()'s' the source text of the network request and returns</td>
+                </tr>
+                <tr>
+                    <td class="method typeresolution">exported( <em>promiseId</em> )</td>
+                    <td class="desc">eval()'s' the source text of the network request in a context with <em>exports</em> and returns (node style)</td>
+                </tr>
+            </table>
+        </p>
 
-    </p>
+    </section>
 
+    <section>
+        <h3><a name="plugins">Adding support for additional type interpreters (plugins)</a></h3>
+        <p>The simple algorithm used to find the interpreter to pipe something through in a <code>data-use</code> is to look up a method with 
+            the same name as the extended mime type (the text after <em>text/promised-</em>).  This means that users can easily attach new 
+            interpreters, plugin style.  For example, if I wanted to create something which compiled linked Handlebars templates as they are 
+            received and then do something with them, I could simply:
+        </p>
+        <pre class="enabled">&lt;script&gt;
+    /* Automatically pipe x-promised-handlebars through here on <code>use()</code> */
+    NamedSourcePromises.types.handlebars = function (promiseId) {
+        return Handlebars.compile( NamedSourcePromises.text(promiseId) );
+    };
+&lt;/script&gt;</pre>
+        <p>And then I could mark links with the corresponding type...</p>
+        <pre class="enabled">&lt;!-- If you shipped handlebars with your page, you might add a Handlebars compile interpreter --&gt;
+&lt;link type="text/x-promised-handlebars" 
+    data-promise="my.twitter.template" 
+    data-src="test3.html"&gt;
+        </pre> 
+        <p>When an author attempts to <em>use</em> it (via the imperative <code>use(<em>promiseId</em>)</code> or via the declarative <code>data-use</code>, they will then receive the compiled template.  Combining this with comma separated promises, the following example would request template 
+            and data async declaratively, but postone processing either of them until both are received...
+        </p>
+        <pre class="enabled">&lt;script type="text/x-promise-deferred" data-use="my.handlebars.code, my.twitter.template, my.twitter.data"&gt;
+    promises.resolved = function (compiledTemplate,data) {
+        document.getElementById("test3").innerHTML = compiledTemplate(data);
+    }
+    promises.rejected = function (err) {
+        document.getElementById("test3").innerHTML = err;
+    }
+&lt;/script&gt;</pre>
+        <h3>Demo</h3>
+        <p>Demo of precisely the above, output is below:</p>
+        <pre class="enabled" id="test3"></pre>
+        <script type="text/x-promise-deferred" data-use="my.handlebars.code, my.twitter.template, my.twitter.data">
+    // Note that handlebars is evaluating in the global scope, see next section
+    promises.resolved = function (h, compiledTemplate,data) {
+        document.getElementById("test3").innerHTML = compiledTemplate(data);
+    }
+    promises.rejected = function (err) {
+        document.getElementById("test3").innerHTML = err;
+    }
+        </script>
+    </section>
+    
 
-    <hr style="margin-bottom: 100em">
-    Delay the DOM content loaded a bit...
-    <img src="http://www.hitchjs.com/images/hitch-sans.png">
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-        <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <img src="http://emberjs.com/images/about/ember-handlebars-sm.png">
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-        <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test<
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-        <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <img src="http://upload.wikimedia.org/wikipedia/en/4/40/Octocat,_a_Mascot_of_Github.jpg">
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-        <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div>div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-        <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-     <img src="http://emberjs.com/images/about/ember-productivity-sm.png">
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-        <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-        <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>testdiv></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <img src="https://0.gravatar.com/avatar/6906f317a4733f4379b06c32229ef02f?d=https%3A%2F%2Fidenticons.github.com%2Ff426f04f2f9813718fb806b30e0093de.png&s=400">
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <img src="http://idiap.github.io/bob/img/github.png">
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-    <div>test<div>test<div>test<div>test</div></div><div>test<div>test</div></div><div>test<div>test</div></div></div></div>
-
-    <script>
-        for(var i=0;i<config.additionalMultiplier;i++){
-            document.write("<div>test</div>");
+    <section>
+        <h2>The <code>text/x-promised-exports</code> type</h2>
+        <p>
+            This proposal also provides an intepreter for nodejs style exporting of code that isn't run in the global scope.  
+            This should work out pretty nicely for four reasons: 1) You don't have to fill the global scope, 
+            2) You can sensibly accept a promise (unlike in the example above) 3) Many modules are already 
+            written to work in either environment.  4) <em>It makes no pretense toward solving complex 
+            problems of dependency management which are better handled by something else (though one could 
+            reasonably prollyfill that as a feature with this as an entry point)</em> This allows us to add a link like
+            <pre class="enabled">&lt;link type="text/x-promised-exports" 
+    data-promise="my.exporting.script" 
+    data-src="exports-test.js"&gt;
+            </pre>
+            Where exports-test.js attaches its returns to the exports object ala:
+            <pre class="enabled">exports = 'Test OK';</pre>  
+            And then we can use it like:
+            <pre class="enabled">&lt;script type="text/x-promise-deferred" data-use="my.exporting.script"&gt;
+    promises.resolved = function (o) {
+        document.getElementById("test4").innerHTML = o;
+    }
+    promises.rejected = function (err) {
+        document.getElementById("test4").innerHTML = err;
+    }
+&lt;/script&gt;</pre>  
+            
+        </p>
+        <h3>Demo</h3>
+        <p>The above &lt;link&gt; and &lt;script&gt; are included in the page, output is below:</p>
+        <pre class="enabled" id="test4"></pre>
+        <script type="text/x-promise-deferred" data-use="my.exporting.script">
+        promises.resolved = function (o) {
+            document.getElementById("test4").innerHTML = o;
         }
+        promises.rejected = function (err) {
+            document.getElementById("test4").innerHTML = err;
+        }
+        </script>
+    </section>
+
+    <section>
+        <h2>Imperative API example...</h2>
+        <p>
+            Imagining a much more complicated example, pretend we want to premptively download the sources ASAP in the background, 
+            but only actually force them to be applied when a user action occurs, say, the click of a button.
+            In this model, we want users to understand that they can't click the button too early or nothing will happen.
+
+             (<em>note this example is a little contrived as 
+            we could also access the interpreted sources at this point since we are re-using the same ones</em>). 
+        </p>
+        <p>To this end, we will add a button that clearly indicates that it is not clickable yet...
+            <pre class="enabled">&lt;button id="later" class="btn" style="clear: both;"&gt;Loading...&lt;/button&gt;</pre>
+            And then we will visually indicate that it is, and wire up the behavior involving compilation, etc.
+        </p>
+        <pre class="enabled">&lt;script type="text/x-promise-deferred" data-when="my.handlebars.code, my.twitter.template, my.twitter.data"&gt;
+    promises.resolved = function (handlebarsSource, twitterTemplate, twitterData) {
+        // our button...
+        var el = document.getElementById("later");
+
+        // where we are gonna put stuff when template is bound...
+        var target = document.getElementById("target");
+
+        // Let the UI indicatet that it is  clickable...
+        el.innerHTML = "Interpret and Apply...";
+        el.classList.add("btn-success");
+        
+        // Wire up the event...
+        $(el).on('click', function () {
+            var data, tmpl;
+
+            // this is executed in the global scope, so... meh.
+            NamedSourcePromises.use("my.handlebars.code"); 
+
+            // Use the stuff...
+            tmpl = NamedSourcePromises.use("my.twitter.template")(
+            data = NamedSourcePromises.use("my.twitter.data")
+
+            target.innerHTML = tmpl(data);
+        });
+    }; 
+    promises.rejected = function (err) { 
+        console.err("ruh roh...rejected\n" + err); 
+    };
+&lt;/script&gt;
+    </pre>
+
+    <h5>Demo time...</h5>
+    <p>
+        If you refresh this page, you should see the 
+        <button id="later" class="btn" style="clear: both;">Loading...</button>
+    </p>
+    <pre class="enabled" id="target"></pre>
+    <script type="text/x-promise-deferred" data-when="my.handlebars.code">
+        promises.resolved = function (handlebarsSource, twitterTemplate, twitterData) {
+            // wire up some ui enhancements, let them know we're ready...
+            var el = document.getElementById("later");
+            var target = document.getElementById("target");
+                
+            el.innerHTML = "Interpret and Apply...";
+            el.classList.add("btn-success");
+            $(el).on('click', function () {
+                var data, tmpl;
+
+                // this is executed in the global scope, so... meh.
+                Hitch.NamedSourcePromises.use("my.handlebars.code"); 
+
+                tmpl = Hitch.NamedSourcePromises.use("my.twitter.template");
+                data = Hitch.NamedSourcePromises.use("my.twitter.data");
+
+                target.innerHTML = tmpl(data);
+            });
+        }; 
+        promises.rejected = function (err) { 
+            console.err("ruh roh...rejected\n" + err); 
+        };
     </script>
+    
+
+
+
+
 
     </body>
 

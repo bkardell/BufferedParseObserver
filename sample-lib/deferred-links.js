@@ -55,7 +55,12 @@
             }
             return RSVP.all(promises);
         });
-        var resolvers = {
+        var useOne = function (id) {
+            var id = id.trim();
+            t = NamedPromisesMeta[id];
+            return me.types[t](id);
+        };
+        var me = {
             when: function () {
                 var promises = [], promise;
                 for (var i=0; i<arguments.length; i++) {
@@ -63,31 +68,40 @@
                     promises.push(NamedPromises[arguments[i].trim()]);
                 }
                 return RSVP.all(promises);
-            }, 
-            json: function (id) {
-                return JSON.parse(lookup(id));
             },
-            script: function (id) {
-                /* 
-                Really debatable whether this is a good idea/necessary... 
-                Using the scope thing below you could easily add protection...
-                */
-                return window.eval(lookup(id));
-            },
-            text: lookup,
             use: function (id) {
-                var id = id.trim();
-                t = NamedPromisesMeta[id];
-                return resolvers[t](id);
+                return useOne(id);
             },
             ready: function (fn) {
                 listObserver.on("done", fn);
+            }, 
+            types: {
+                json: function (id) {
+                    return JSON.parse(lookup(id));
+                },
+                script: function (id) {
+                    /* 
+                    Really debatable whether this is a good idea/necessary... 
+                    Using the scope thing below you could easily add protection...
+                    */
+                    return window.eval(lookup(id));
+                },
+                exports: function (id) {
+                    /* 
+                    Really debatable whether this is a good idea/necessary... 
+                    Using the scope thing below you could easily add protection...
+                    */
+                    var exports = {};
+                    eval(lookup(id));
+                    return exports;
+                },
+                text: lookup
             }
         };
         var resolveAll = function (typ, arr) {
             var ret = [], val;
             for (var i=0;i<arr.length;i++) {
-                val = resolvers[typ](arr[i]);
+                val = me[typ](arr[i]);
                 ret.push(val);
             }
             return ret;
@@ -95,7 +109,7 @@
         var promiseScript = function (code, names, method) {
             var names = names.split(",");
             console.log("expecting promises:" + names);
-            resolvers.when.apply(resolvers, names).then(function () {
+            me.when.apply(me, names).then(function () {
                 var myargs = arguments[0];
                 console.log("got promises:" + names);
                 (function () {
@@ -119,14 +133,14 @@
             var el, name, method;
             for (var i=0; i<arr.length; i++) {
                 el = arr[i];
-                method = (el.hasAttribute("use")) ? "use" : "when";
+                method = (el.hasAttribute("data-use")) ? "data-use" : "data-when";
                 name = el.getAttribute(method);
                 typestr = el.getAttribute("type") || '';
                 if(typestr === "text/x-promise-deferred") {
-                    promiseScript(el.innerHTML, name, method);
+                    promiseScript(el.innerHTML, name, method.split("-")[1]);
                 }
             }
         });
-        return resolvers;
+        return me;
     }());
   }(window.ProllyfillRoot || window));

@@ -35,7 +35,7 @@
             for (var i=0; i<arr.length; i++) {
                 el = arr[i];
                 typestr = el.getAttribute("type") || 'text';
-                if(typestr.indexOf("text/x-promised") === 0) {
+                if(el.getAttribute("data-promise") && el.getAttribute("data-src")) {
                     promises.push(makePromise(el, typestr));
                 }
             }

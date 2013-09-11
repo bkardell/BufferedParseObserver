@@ -97,7 +97,9 @@
         significantly better and which are just noise - we need to experiment.  This proposal attempts to 
         provide <em>potential</em> answers and generate meaningful discussion to tighten the feedback loop.
         It is based on lower-level features provided here by <a href="../index.html"><code>BufferedParseObserver</code></a>, 
-        <code>promises</code> and <code>XMLHttpRequest</code>.
+        <code>promises</code> and <code>XMLHttpRequest</code>.  Note that many of the examples in this document, 
+        while interesting, are a bit contrived - the real use cases where I believe this plays in handy have more to 
+        do with adding capabilities in general (prollyfills).
     <p>
 
     <section>
@@ -305,9 +307,11 @@
         <h2>The <code>text/x-promised-exports</code> type</h2>
         <p>
             This proposal also provides an intepreter for nodejs style exporting of code that isn't run in the global scope.  
-            This should work out pretty nicely for three reasons: 1) You don't have to fill the global scope, 
+            This should work out pretty nicely for four reasons: 1) You don't have to fill the global scope, 
             2) You can sensibly accept a promise (unlike in the example above) 3) Many modules are already 
-            written to work in either environment.  This allows us to add a link like
+            written to work in either environment.  4) <em>It makes no pretense toward solving complex 
+            problems of dependency management which are better handled by something else (though one could 
+            reasonably prollyfill that as a feature with this as an entry point)</em> This allows us to add a link like
             <pre class="enabled">&lt;link type="text/x-promised-exports" 
     data-promise="my.exporting.script" 
     data-src="exports-test.js"&gt;

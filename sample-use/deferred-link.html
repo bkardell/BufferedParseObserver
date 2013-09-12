@@ -184,7 +184,7 @@
         <p>In coordination with this, 
             authors MAY specify the &lt;data-use&gt; attribute on a deferred promise &lt;script&gt;.  
             This causes the appropriate interpreter to look up and interpret results which are passed in to 
-            the provided <code>resolved</code> method (for details on this see <a href="#">something</a>)
+            the provided <code>resolved</code> method (for details on this see <a href="#plugins">Adding support for additional type interpreters (plugins)</a>)
         </p>
         <pre class="enabled">&lt;script type="text/x-promise-deferred" data-use="my.twitter.data"&gt;
     promises.resolved = function (data) {
@@ -390,7 +390,10 @@
 
     <h5>Demo time...</h5>
     <p>
-        If you refresh this page, you should see the 
+        If you refresh this page, you should see the button below intially (potentially briefly depending on speed/latency)
+        be gray with a loading indicator and unclickable.  When all of the promises are complete, it lights the button 
+        and makes it clickable, but no source has been parsed or evaulated yet -- when you click the button it will 
+        <code>use</code> piping through the appropriate interpreter and doing it's thing...
         <button id="later" class="btn" style="clear: both;">Loading...</button>
     </p>
     <pre class="enabled" id="target"></pre>

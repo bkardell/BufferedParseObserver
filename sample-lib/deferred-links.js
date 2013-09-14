@@ -1,6 +1,6 @@
 (function (prollyfillRoot) {
    prollyfillRoot.NamedSourcePromises = (function () {
-        var NamedPromises = {}, typestr, NamedPromisesMeta = {};
+        var NamedPromises = {}, typestr, NamedPromisesMeta = {}, userAddedPromisers = {};
         var listObserver = new prollyfillRoot.BufferedParseObserver('link', 'setImmediate');
         var scriptObserver = new prollyfillRoot.BufferedParseObserver('script', 'setImmediate');
         var fetchTextAndPromise = function(url) {
@@ -29,17 +29,21 @@
             // when does the work initiate?
             var evtName = el.getAttribute("data-on");
             var promiseName = el.getAttribute("data-promise");
+            var userAddedPromiserName = el.getAttribute("data-promiser");
             var typPts = typ.split("-");
-            console.log("promised:" + promiseName);
             var url = el.getAttribute("data-src");
+            // prevent overriding default, author opt-in required
+            var promiser = (userAddedPromiserName && userAddedPromiserName !== "fetchTextAndPromise") ? userAddedPromisers[userAddedPromiserName] : fetchTextAndPromise;
+            console.log("promised:" + promiseName);
+                
             NamedPromisesMeta[promiseName] = (typPts.length === 3) ? typPts[2] : "text";
             NamedPromises[promiseName] = new RSVP.Promise(function (resolve, reject) {
                 if ( /DOMContentLoaded|load/.test(evtName) ) {
                     window.addEventListener(evtName, function () {
-                        fetchTextAndPromise(url).then(function (data) { resolve(data) });
+                        promiser(url, el).then(function (data) { resolve(data) });
                     });
                 } else {
-                    fetchTextAndPromise(url).then(function (data) { resolve(data) });
+                    promiser(url, el).then(function (data) { resolve(data) });
                 }
             });
             return NamedPromises[promiseName];
@@ -96,7 +100,8 @@
                     return exports;
                 },
                 text: lookup
-            }
+            }, 
+            promisers: userAddedPromisers
         };
         var resolveAll = function (typ, arr) {
             var ret = [], val;

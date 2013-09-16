@@ -1,6 +1,6 @@
 (function (prollyfillRoot) {
    prollyfillRoot.NamedSourcePromises = (function () {
-        var NamedPromises = {}, typestr, NamedPromisesMeta = {}, userAddedPromisers = {};
+        var NamedPromises = {}, typestr, NamedPromisesMeta = {}, userAddedPromisers = {}, interpreted = {};
         var listObserver = new prollyfillRoot.BufferedParseObserver('link', 'setImmediate');
         var scriptObserver = new prollyfillRoot.BufferedParseObserver('script', 'setImmediate');
         var fetchTextAndPromise = function(url) {
@@ -59,10 +59,12 @@
             }
             return RSVP.all(promises);
         });
-        var useOne = function (id) {
+        var useOne = function (id, force) {
             var id = id.trim();
             t = NamedPromisesMeta[id];
-            return me.types[t](id);
+            if (!force && interpreted[id]) { return interpreted[id]; }
+            interpreted[id] = me.types[t](id);
+            return interpreted[id];
         };
         var me = {
             when: function () {
@@ -73,8 +75,8 @@
                 }
                 return RSVP.all(promises);
             },
-            use: function (id) {
-                return useOne(id);
+            use: function (id, force) {
+                return useOne(id, force);
             },
             ready: function (fn) {
                 listObserver.on("done", fn);

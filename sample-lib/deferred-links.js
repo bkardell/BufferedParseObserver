@@ -67,6 +67,7 @@
             return interpreted[id];
         };
         var me = {
+            fetchTextAndPromise: fetchTextAndPromise, 
             when: function () {
                 var promises = [], promise;
                 for (var i=0; i<arguments.length; i++) {
@@ -81,6 +82,10 @@
             ready: function (fn) {
                 listObserver.on("done", fn);
             }, 
+            makePromise: function (el, typeOverride) {
+                makePromise(el, typeOverride);
+            },
+            RSVP: RSVP, 
             types: {
                 json: function (id) {
                     return JSON.parse(lookup(id));

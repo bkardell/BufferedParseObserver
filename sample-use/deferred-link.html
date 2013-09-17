@@ -3,22 +3,6 @@
 <html>
     <head>
 
-    <link type="text/x-promised-json"
-        data-src="https://rawgithub.com/gnip/764239/raw/6c6a2297f3e4e29a626f07db0c57b45af7d7e5d7/Twitter+%28json+format%29.js"
-        data-promise="my.twitter.data">
-
-    <link type="text/x-promised-script"
-        data-src="https://rawgithub.com/wycats/handlebars.js/1.0.0/dist/handlebars.js"
-        data-promise="my.handlebars.code">
-
-    <link type="text/x-promised-handlebars" 
-        data-promise="my.twitter.template" 
-        data-src="test3.html">
-
-
-    <link type="text/x-promised-exports" 
-        data-promise="my.exporting.script" 
-        data-src="exports-test.js">
 
     <script>
       var config = { additionalMultiplier: 0 };
@@ -38,9 +22,49 @@
         Hitch.NamedSourcePromises.types.handlebars = function (promiseId) {
             return Handlebars.compile( Hitch.NamedSourcePromises.types.text(promiseId) );
         };
+
+        /* for demo'ing custom promser stuff, mounted on Hitch as the prollyfill root... */
+        Hitch.NamedSourcePromises.promisers.localStorage = function (url, el) {
+            var url = url;
+            return new Hitch.NamedSourcePromises.RSVP.Promise(function (resolve, reject) {
+                try {
+                    if (localStorage[url]) {
+                        resolve(localStorage[url]);
+                        return localStorage[url];    
+                    } 
+                   Hitch.NamedSourcePromises.fetchTextAndPromise(url).then(function (data) {
+                        localStorage[url] = data;
+                        resolve(data);
+                    });
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        };
       </script>
 
-      </script>
+    <link type="text/x-promised-json"
+        data-src="https://rawgithub.com/gnip/764239/raw/6c6a2297f3e4e29a626f07db0c57b45af7d7e5d7/Twitter+%28json+format%29.js"
+        data-promise="my.twitter.data">
+
+    <link type="text/x-promised-script"
+        data-src="https://rawgithub.com/wycats/handlebars.js/1.0.0/dist/handlebars.js"
+        data-promise="my.handlebars.code">
+
+    <link type="text/x-promised-handlebars" 
+        data-promise="my.twitter.template" 
+        data-src="test3.html">
+
+
+    <link type="text/x-promised-exports" 
+        data-promise="my.exporting.script" 
+        data-src="exports-test.js">
+
+    <link type="text/x-promised-json" 
+        data-promise="local.twitter.data"
+        data-src="https://rawgithub.com/gnip/764239/raw/6c6a2297f3e4e29a626f07db0c57b45af7d7e5d7/Twitter+%28json+format%29.js"
+        data-promiser="localStorage">
+
 
       <!-- Add some CSS as we might for a standard page... -->
       <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css">
@@ -184,7 +208,7 @@
         <p>In coordination with this, 
             authors MAY specify the &lt;data-use&gt; attribute on a deferred promise &lt;script&gt;.  
             This causes the appropriate interpreter to look up and interpret results which are passed in to 
-            the provided <code>resolved</code> method (for details on this see <a href="#plugins">Adding support for additional type interpreters (plugins)</a>)
+            the provided <code>resolved</code> method (for details on this see <a href="#interpreterplugins">Adding support for additional type interpreters (plugins)</a>)
         </p>
         <pre class="enabled">&lt;script type="text/x-promise-deferred" data-use="my.twitter.data"&gt;
     promises.resolved = function (data) {
@@ -221,7 +245,7 @@
                 </tr>
                 <tr>
                     <td class="method">use( <em>promiseId</em> )</td>
-                    <td class="desc">Automatically call the appropriate method (json, script or exported by default, see <a href="#plugins">Adding support for additional type interpreters</a> below) based on the extended type specified in the link.</td>
+                    <td class="desc">Automatically call the appropriate method (json, script or exported by default, see <a href="#interpreterplugins">Adding support for additional type interpreters</a> below) based on the extended type specified in the link.</td>
                 </tr>
                 <tr>
                     <td class="method">ready( <em>callback</em> )</td>
@@ -259,7 +283,7 @@
     </section>
 
     <section>
-        <h3><a name="plugins">Adding support for additional type interpreters (plugins)</a></h3>
+        <h3><a name="interpreterplugins">Adding support for additional type interpreters (interpreter plugins)</a></h3>
         <p>The simple algorithm used to find the interpreter to pipe something through in a <code>data-use</code> is to look up a method with 
             the same name as the extended mime type (the text after <em>text/promised-</em>).  This means that users can easily attach new 
             interpreters, plugin style.  For example, if I wanted to create something which compiled linked Handlebars templates as they are 
@@ -302,6 +326,71 @@
         </script>
     </section>
     
+
+
+    <section>
+        <h3><a name="promiserplugins">Adding support for additional ways of fetching (promiser plugins)</a></h3>
+        <p>By default, the basic pattern is to fetch something via xhr and a GET request, however, it is also 
+            possible to register additional ways of looking things up.  The thing that does the looking is a 
+            promiser and you can add one which, for example attempts to add something out of localStorage if 
+            it exists there.  (Note, you have to register a promiser <em>before</em> any link tags, 
+            which has a small price as inclusion of the observer begins immediately with anything 
+            already in the tree):
+        </p>
+        <pre class="enabled">&lt;script&gt;
+        NamedSourcePromises.promisers.localStorage = function (url, el) {
+            var url = url;
+            return new NamedSourcePromises.RSVP.Promise(function (resolve, reject) {
+                try {
+                    if (localStorage[url]) {
+                        resolve(localStorage[url]);
+                        return localStorage[url];    
+                    } 
+                   NamedSourcePromises.fetchTextAndPromise(url).then(function (data) {
+                        localStorage[url] = data;
+                        resolve(data);
+                    });
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        };
+&lt;/script&gt;</pre>
+
+        <p>In order to make use of this, I need to add the relevant <code>promiser</code> attribute...</p>
+        <pre class="enabled">
+&lt;link type="text/x-promised-json" 
+    data-promise="local.twitter.data"
+    data-src="local.twitter.data"
+    data-promiser="localStorage"&gt;
+        </pre> 
+        <p>When an author attempts to <em>use</em> it (via the imperative <code>use(<em>promiseId</em>)</code> or via the declarative <code>data-use</code>, they will then receive result appropriately interpreted.
+        </p>
+        <pre class="enabled">&lt;script type="text/x-promise-deferred" data-use="local.twitter.data"&gt;
+    promises.resolved = function (data) {
+        document.getElementById("test-localStorePlugin").innerHTML = "Received: " + data 
+            + "\nIs it in localStorage? " 
+            + (!!localStorage["https://rawgithub.com/gnip/764239/raw/6c6a2297f3e4e29a626f07db0c57b45af7d7e5d7/Twitter+%28json+format%29.js"]);
+    }
+    promises.rejected = function (err) {
+        document.getElementById("test-localStorePlugin").innerHTML = err;
+    }
+&lt;/script&gt;</pre>
+        <h3>Demo</h3>
+        <p>Demo of precisely the above, output is below:</p>
+        <pre class="enabled" id="test-localStorePlugin"></pre>
+        <script type="text/x-promise-deferred" data-use="local.twitter.data">
+    promises.resolved = function (data) {
+        document.getElementById("test-localStorePlugin").innerHTML = "Received: " + data 
+            + "\nIs it in localStorage? " 
+            + (!!localStorage["https://rawgithub.com/gnip/764239/raw/6c6a2297f3e4e29a626f07db0c57b45af7d7e5d7/Twitter+%28json+format%29.js"]);
+    }
+    promises.rejected = function (err) {
+        document.getElementById("test-localStorePlugin").innerHTML = err;
+    }
+        </script>
+    </section>
+
 
     <section>
         <h2>The <code>text/x-promised-exports</code> type</h2>
